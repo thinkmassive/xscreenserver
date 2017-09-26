@@ -1,0 +1,13 @@
+---
+# vars file for xscreenserver
+guacamole_version: 0.9.13-incubating
+guacamole_server_url: http://apache.org/dyn/closer.cgi?action=download&filename=incubator/guacamole/{{ guacamole_version }}/source/guacamole-server-{{ guacamole_version }}.tar.gz
+#guacamole_client_url: http://apache.org/dyn/closer.cgi?action=download&filename=incubator/guacamole/{{ guacamole_version }}/source/guacamole-client-{{ guacamole_version }}.tar.gz
+guacamole_client_war_url: http://apache.org/dyn/closer.cgi?action=download&filename=incubator/guacamole/{{ guacamole_version }}/binary/guacamole-{{ guacamole_version }}.war
+guacamole_server_md5: fed1d18e6b18b114375bfabcf02f5607
+guacamole_client_md5: 3d0b7ae28148276fbbdac7dc464fcf6e
+guacamole_client_war_md5: cfba1981a6e046e0a2739a8696313ff2
+guacamole_homedir: /opt/guacamole
+guacamole_user: root
+guacamole_group: root
+tomcat_webapp_dir: /var/lib/tomcat/webapps

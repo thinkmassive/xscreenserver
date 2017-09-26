@@ -1,0 +1,187 @@
+---
+- name: Enable EPEL repo (CentOS)
+  yum: name=epel-release
+  when: ansible_distribution == "CentOS"
+
+- name: Enable RPM Fusion repo (CentOS)
+  yum: name="{{item}}"
+  with_items:
+    - https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm
+    - https://download1.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-7.noarch.rpm
+  when: ansible_distribution == "CentOS"
+
+- name: Installing X packages
+  package: name="{{item}}" update_cache=true
+  with_items:
+    - "@X Window System"
+#    - xorg-x11-server-Xvfb
+#    - x11vnc
+  tags: x11
+
+- name: Installing Guacamole build libraries (Fedora/CentOS)
+  package: name="{{item}}"
+  with_items:
+    - cairo-devel
+    - libjpeg-turbo-devel
+    - libpng-devel
+    - uuid-devel
+  when: (ansible_distribution == "Fedora") or (ansible_distribution == "CentOS")
+
+- name: Installing Guacamole build libraries (Debian/Ubuntu)
+  package: name="{{item}}"
+  with_items:
+    - libcairo2-dev
+    - libjpeg62-turbo-dev
+    - libpng12-dev
+    - libossp-uuid-dev
+  when: (ansible_distribution == "Debian") or (ansible_distribution == "Ubuntu")
+
+- name: Install optional dependencies (Fedora/CentOS)
+  package: name="{{item}}"
+  with_items:
+    - ffmpeg-devel
+    - freerdp-devel
+    - pango-devel
+    - libssh2-devel
+    - libvncserver-devel
+    - pulseaudio-libs-devel
+    - openssl-devel
+    - libvorbis-devel
+    - libwebp-devel
+  when: (ansible_distribution == "Fedora") or (ansible_distribution == "CentOS")
+
+- name: Install optional dependencies (Debian/Ubuntu)
+  package: name="{{item}}"
+  with_items:
+    - libavcodec-dev
+    - libavutil-dev
+    - libswscale-dev
+    - libfreerdp-dev
+    - libpango1.0-dev
+    - libssh2-1-dev
+    - libvncserver-dev
+    - libpulse-dev
+    - libssl-dev
+    - libvorbis-dev
+    - libwebp-dev
+  when: (ansible_distribution == "Debian") or (ansible_distribution == "Ubuntu")
+
+- name: Install Guacamole build tools (Fedora/CentOS)
+  package: name="@Development tools"
+  when: (ansible_distribution == "Fedora") or (ansible_distribution == "CentOS")
+  tags: devtools
+
+- name: Install Guacamole build tools (Debian/Ubuntu)
+  package: name=build-essential
+  when: (ansible_distribution == "Debian") or (ansible_distribution == "Ubuntu")
+
+- name: Create guacamole homedir
+  file:
+    name: "{{ guacamole_homedir }}"
+    state: directory
+    owner: "{{ guacamole_user }}"
+    group: "{{ guacamole_group }}"
+
+- name: Download Guacamole server source code
+  get_url:
+    url: "{{ guacamole_server_url }}"
+    checksum: "md5:{{ guacamole_server_md5 }}"
+    dest: "{{ guacamole_homedir }}"
+    owner: "{{ guacamole_user }}"
+    group: "{{ guacamole_group }}"
+
+#- name: Download Guacamole client source code
+#  get_url:
+#    url: "{{ guacamole_client_url }}"
+#    checksum: "md5:{{ guacamole_client_md5 }}"
+#    dest: "{{ guacamole_homedir }}"
+#    owner: "{{ guacamole_user }}"
+#    group: "{{ guacamole_group }}"
+
+- name: Extract Guacamole server archive
+  unarchive:
+    src: "{{ guacamole_homedir }}/guacamole-server-{{ guacamole_version }}.tar.gz"
+    remote_src: yes
+    dest: "{{ guacamole_homedir }}"
+    #dest: "{{ guacamole_homedir }}/guacamole-server"
+
+#- name: Extract Guacamole client archive
+#  unarchive:
+#    src: "{{ guacamole_homedir }}/guacamole-client-{{ guacamole_version }}.tar.gz"
+#    remote_src: yes
+#    #dest: "{{ guacamole_homedir }}/guacamole-client"
+#    dest: "{{ guacamole_homedir }}"
+
+- name: Configure guacamole-server build
+  shell: ./configure --with-init-dir=/etc/init.d
+  args:
+    chdir: "{{ guacamole_homedir }}/guacamole-server-{{ guacamole_version }}"
+
+- name: Compile guacamole-server
+  shell: make
+  args:
+    chdir: "{{ guacamole_homedir }}/guacamole-server-{{ guacamole_version }}"
+
+- name: Install guacamole-server
+  shell: make install && ldconfig
+  args:
+    chdir: "{{ guacamole_homedir }}/guacamole-server-{{ guacamole_version }}"
+
+- name: Install Guacamole client dependencies
+  package:
+    name: "{{ item }}"
+  with_items:
+    - tomcat
+    - tomcat-admin-webapps
+    - tomcat-docs-webapp
+    - tomcat-javadoc
+    - tomcat-webapps
+
+- name: Download Guacamole client WAR file
+  get_url:
+    url: "{{ guacamole_client_war_url }}"
+    checksum: "md5:{{ guacamole_client_war_md5 }}"
+    dest: "{{ tomcat_webapp_dir }}/guacamole.war"
+    owner: "{{ guacamole_user }}"
+    group: "{{ guacamole_group }}"
+  tags: war
+
+- name: Enable and start tomcat
+  service:
+    name: tomcat
+    enabled: true
+    state: started
+
+- name: Restart tomcat service to load guacamole.war
+  service:
+    name: tomcat
+    state: restarted
+
+- name: Enable and start guacd service
+  service:
+    name: guacd
+    enabled: true
+    state: started
+
+- name: Install iptables
+  package:
+    name: iptables
+    state: present
+
+- name: Redirect port 80 to 8080
+  iptables:
+    table: nat
+    chain: PREROUTING
+    protocol: tcp
+    destination_port: 80
+    jump: REDIRECT
+    to_ports: 8080
+    comment: Redirect 80 -> 8080
+  become: yes
+  tags: iptables
+
+- name: Save iptables rules
+  shell: iptables-save > /etc/sysconfig/iptables
+  become: yes
+  tags: iptables
+
